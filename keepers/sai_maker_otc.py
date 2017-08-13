@@ -17,6 +17,7 @@
 
 import argparse
 import operator
+import subprocess
 from functools import reduce
 from itertools import chain
 from typing import List
@@ -162,7 +163,19 @@ class SaiMakerOtc(SaiKeeper):
                                     want_token=self.gem.address, want_amount=want_amount)
 
     def target_price(self) -> Wad:
-        ref_per_gem = Wad(DSValue(web3=self.web3, address=self.tub.pip()).read_as_int())
+        """SAI per GEM price that we are targeting."""
+        try:
+            cmdstr = "setzer price gemini"
+            process = subprocess.Popen(cmdstr.split(), stdout=subprocess.PIPE)
+            output, error = process.communicate()
+            if error != None:
+                raise ValueError('Error reading feed!')
+            feed_price = float(output)
+            ref_per_gem = Wad.from_number(feed_price)
+            self.logger.debug(f"Successfully read Gemini feed, target price set to: {feed_price}")
+        except:
+            self.logger.info(f"Exception reading Gemini feed, falling back to tub.pip().")
+            ref_per_gem = Wad(DSValue(web3=self.web3, address=self.tub.pip()).read_as_int())
         return ref_per_gem / self.tub.par()
 
     @staticmethod
