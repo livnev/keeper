@@ -15,11 +15,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Optional
-
 from web3 import Web3
 
-from api import Contract, Address, Receipt, Transact
+from api import Contract, Address, Transact
 
 
 class DSProxy(Contract):
@@ -34,6 +32,7 @@ class DSProxy(Contract):
     """
 
     abi = Contract._load_abi(__name__, 'abi/DSProxy.abi')
+    bin = Contract._load_bin(__name__, 'abi/DSProxy.bin')
 
     def __init__(self, web3: Web3, address: Address):
         self.web3 = web3
@@ -42,6 +41,15 @@ class DSProxy(Contract):
         self._contract = web3.eth.contract(abi=self.abi)(address=address.address)
 
     def execute(self, contract: bytes, calldata: bytes) -> Transact:
+        """Create a new contract and call a function of it.
+
+        Creates a new contract using the bytecode (`contract`). Then does _delegatecall_ to the function
+        and arguments specified in the `calldata`.
+
+        Args:
+            contract: Contract bytecode.
+            calldata: Calldata to pass to _delegatecall_.
+        """
         return Transact(self, self.web3, self.abi, self.address, self._contract, 'execute', [contract, calldata])
 
     def __repr__(self):

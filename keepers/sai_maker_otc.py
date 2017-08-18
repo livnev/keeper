@@ -36,7 +36,7 @@ class SaiMakerOtc(SaiKeeper):
     Keeper continuously monitors and adjusts its positions in order to act as a market maker.
     It aims to have open SAI sell orders for at least `--min-sai-amount` and open WETH sell
     orders for at least `--min-weth-amount`, with their price in the <min-margin,max-margin>
-    range from the current SAI/GEM price.
+    range from the current SAI/W-ETH price.
 
     When started, the keeper places orders for the maximum allowed amounts (`--max-sai-amount`
     and `--max-weth-amount`) and uses `avg-margin` to calculate the order price.
@@ -56,6 +56,8 @@ class SaiMakerOtc(SaiKeeper):
         self.min_weth_amount = Wad.from_number(self.arguments.min_weth_amount)
         self.max_sai_amount = Wad.from_number(self.arguments.max_sai_amount)
         self.min_sai_amount = Wad.from_number(self.arguments.min_sai_amount)
+        self.sai_dust_cutoff = Wad.from_number(self.arguments.sai_dust_cutoff)
+        self.weth_dust_cutoff = Wad.from_number(self.arguments.weth_dust_cutoff)
         self.min_margin_buy = self.arguments.min_margin_buy
         self.avg_margin_buy = self.arguments.avg_margin_buy
         self.max_margin_buy = self.arguments.max_margin_buy
@@ -75,6 +77,8 @@ class SaiMakerOtc(SaiKeeper):
         parser.add_argument("--min-weth-amount", help="Minimum value of open WETH sell orders", type=float, required=True)
         parser.add_argument("--max-sai-amount", help="Maximum value of open SAI sell orders", type=float, required=True)
         parser.add_argument("--min-sai-amount", help="Minimum value of open SAI sell orders", type=float, required=True)
+        parser.add_argument("--sai-dust-cutoff", help="Minimum order value (SAI) for buy orders", type=int, default=0)
+        parser.add_argument("--weth-dust-cutoff", help="Minimum order value (WETH) for sell orders", type=int, default=0)
         parser.add_argument("--round-places", help="Number of decimal places to round order prices to (default=2)", type=int, default=2)
 
     def startup(self):
@@ -146,7 +150,7 @@ class SaiMakerOtc(SaiKeeper):
         if total_amount < self.min_weth_amount:
             our_balance = self.gem.balance_of(self.our_address)
             have_amount = Wad.min(self.max_weth_amount - total_amount, our_balance)
-            if have_amount > Wad(0):
+            if (have_amount >= self.weth_dust_cutoff) and (have_amount > Wad(0)):
                 want_amount = have_amount * round(self.apply_sell_margin(self.target_price(), self.avg_margin_sell), self.round_places)
                 yield self.otc.make(have_token=self.gem.address, have_amount=have_amount,
                                     want_token=self.sai.address, want_amount=want_amount)
@@ -157,7 +161,7 @@ class SaiMakerOtc(SaiKeeper):
         if total_amount < self.min_sai_amount:
             our_balance = self.sai.balance_of(self.our_address)
             have_amount = Wad.min(self.max_sai_amount - total_amount, our_balance)
-            if have_amount > Wad(0):
+            if (have_amount >= self.sai_dust_cutoff) and (have_amount > Wad(0)):
                 want_amount = have_amount / round(self.apply_buy_margin(self.target_price(), self.avg_margin_buy), self.round_places)
                 yield self.otc.make(have_token=self.sai.address, have_amount=have_amount,
                                     want_token=self.gem.address, want_amount=want_amount)

@@ -21,6 +21,16 @@ from api import Contract, Address, Transact
 
 
 class DSVault(Contract):
+    """A client for the `DSVault` contract.
+
+    You can find the source code of the `DSVault` contract here:
+    <https://github.com/dapphub/ds-vault>.
+
+    Attributes:
+        web3: An instance of `Web` from `web3.py`.
+        address: Ethereum address of the `DSVault` contract.
+    """
+
     abi = Contract._load_abi(__name__, 'abi/DSVault.abi')
     bin = Contract._load_bin(__name__, 'abi/DSVault.bin')
 
@@ -31,8 +41,35 @@ class DSVault(Contract):
 
     @staticmethod
     def deploy(web3: Web3):
+        """Deploy a new instance of the `DSVault` contract.
+
+        Args:
+            web3: An instance of `Web` from `web3.py`.
+
+        Returns:
+            A `DSVault` class instance.
+        """
         return DSVault(web3=web3, address=Contract._deploy(web3, DSVault.abi, DSVault.bin, []))
 
+    def authority(self) -> Address:
+        """Return the current `authority` of a `DSAuth`-ed contract.
+
+        Returns:
+            The address of the current `authority`.
+        """
+        return Address(self._contract.call().authority())
+
     def set_authority(self, address: Address) -> Transact:
+        """Set the `authority` of a `DSAuth`-ed contract.
+
+        Args:
+            address: The address of the new `authority`.
+
+        Returns:
+            A `Transact` instance, which can be used to trigger the transaction.
+        """
         assert(isinstance(address, Address))
         return Transact(self, self.web3, self.abi, self.address, self._contract, 'setAuthority', [address.address])
+
+    def __repr__(self):
+        return f"DSVault('{self.address}')"

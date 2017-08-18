@@ -22,6 +22,19 @@ _SAI Stablecoin System_ contracts has been created. It can be used not only by
 keepers, but may also be found useful by authors of some other, unrelated utilities
 aiming to interact with these contracts.
 
+## Disclaimer
+
+This set of reference keepers is provided for demonstration purposes only. If you,
+by any chance, want to run them on the production network or provide them
+with any real money or tokens, you do it on your own responsibility only.
+
+As stated in the _GNU Affero General Public License_:
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
 ## Installation
 
 This project uses *Python 3.6.1*.
@@ -60,19 +73,73 @@ that can be bitten.
 
 ### `keeper-sai-arbitrage`
 
-TODO
+SAI keeper to arbitrage on OasisDEX, `join`, `exit`, `boom` and `bust`.
+
+Keeper constantly looks for profitable enough arbitrage opportunities
+and executes them the moment they become available. It can make profit on:
+* taking orders on OasisDEX (on SAI/SKR, SAI/W-ETH and SKR/W-ETH pairs),
+* calling `join` and `exit` to exchange between W-ETH and SKR,
+* calling `boom` and `bust` to exchange between SAI and SKR.
+
+Opportunities discovered by the keeper are sequences of token exchanges
+executed using methods listed above. An opportunity can consist of two
+or three steps, technically it could be more but practically it will never
+be more than three.
+
+Steps can be executed sequentially (each one as a separate Etheruem
+transaction, checking if one has been successful before executing the next
+one) or in one ago. The latter method requires a `TxManager` contract deployed,
+its address has to be passed as the `--tx-manager` argument. Also the `TxManager`
+contract has to be owned by the account the keeper operates from.
+
+You can find the source code of the `TxManager` here:
+<https://github.com/reverendus/tx-manager>.
+
+The base token of this keeper is SAI i.e. all arbitrage opportunities will
+start with some amount of SAI, exchange it to some other token(s) and then exchange
+back to SAI, aiming to end up with more SAI than it started with. The keeper is aware
+of gas costs and takes a rough estimate of these costs while calculating arbitrage
+profitability.
 
 ### `keeper-sai-top-up`
 
-TODO
+SAI keeper to top-up cups before they reach the liquidation ratio.
+
+Kepper constantly monitors cups owned by the `--eth-from` account. If the
+collateralization ratio falls under `mat` + `--min-margin`, the cup will get
+topped-up up to `mat` + `--top-up-margin`.
+
+Cups owned by other accounts are ignored.
 
 ### `keeper-sai-maker-otc`
 
-TODO
+SAI keeper to act as a market maker on OasisDEX, on the W-ETH/SAI pair.
+
+Keeper continuously monitors and adjusts its positions in order to act as a market maker.
+It aims to have open SAI sell orders for at least `--min-sai-amount` and open WETH sell
+orders for at least `--min-weth-amount`, with their price in the <min-margin,max-margin>
+range from the current SAI/W-ETH price.
+
+When started, the keeper places orders for the maximum allowed amounts (`--max-sai-amount`
+and `--max-weth-amount`) and uses `avg-margin` to calculate the order price.
+
+As long as the price of existing orders is within the <min-margin,max-margin> range,
+the keeper keeps them open. If they fall outside that range, they get cancelled.
+If the total amount of open orders falls below either `--min-sai-amount` or
+`--min-weth-amount`, a new order gets created for the remaining amount so the total
+amount of orders is equal to `--max-sai-amount` / `--max-weth-amount`.
+
+This keeper will constantly use gas to move orders as the SAI/GEM price changes,
+but it can be limited by setting the margin and amount ranges wide enough.
 
 ### `keeper-sai-maker-etherdelta`
 
-TODO
+SAI keeper to act as a market maker on EtherDelta, on the ETH/SAI pair.
+
+Due to limitations of EtherDelta, the development of this keeper has been
+discontinued. It works most of the time, but due to the fact that EtherDelta
+was a bit unpredictable in terms of placing orders at the time this keeper
+was developed, we abandoned it and decided to stick to SaiMakerOtc for now.
 
 ## Running keepers
 
@@ -95,10 +162,23 @@ so it gets automatically restarted every time it fails.
 
 ## APIs for smart contracts
 
-The current version provides APIs for `Tub`, `Lpc`, `ERC20Token`, `DSValue` and in addition
-also for `SimpleMarket` (OasisDEX/OTC). There is also a working API around `AuctionManager`
-and `SplittingAuctionManager`, but they will be used in _DAI Stablecoin System_, not in
-_SAI Stablecoin System_.
+In order simplify keeper development, a set of APIs has been developed around the core contracts
+of the _SAI Stablecoin_ ecosystem. The current version provides APIs around:
+* `ERC20Token`,
+* `Tub`, `Tap`, `Top` and `Lpc` (<https://github.com/makerdao/sai>),
+* `SimpleMarket` and `ExpiringMarket` (<https://github.com/makerdao/maker-otc>),
+* `TxManager` (<https://github.com/reverendus/tx-manager>),
+* `DSGuard` (<https://github.com/dapphub/ds-guard>),
+* `DSProxy` (<https://github.com/dapphub/ds-proxy>),
+* `DSRoles` (<https://github.com/dapphub/ds-roles>),
+* `DSToken` (<https://github.com/dapphub/ds-token>),
+* `DSEthToken` (<https://github.com/dapphub/ds-eth-token>),
+* `DSValue` (<https://github.com/dapphub/ds-value>),
+* `DSVault` (<https://github.com/dapphub/ds-vault>).
+
+In addition to that, there are draft interfaces to:
+* `EtherDelta` (<https://github.com/etherdelta/etherdelta.github.io>),
+* `AuctionManager` and `SplittingAuctionManager` (<https://github.com/makerdao/token-auction>).
 
 You can find the full documentation of the APIs here: http://maker-keeper-docs.surge.sh.
 
