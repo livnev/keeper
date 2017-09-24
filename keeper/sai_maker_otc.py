@@ -223,7 +223,7 @@ class SaiMakerOtc(SaiKeeper):
 
     def top_up_bands(self, active_offers: list, buy_bands: list, sell_bands: list, target_price: Wad):
         """Asynchronously create new buy and sell offers in all send and buy bands if necessary."""
-        synchronize([transact.transact_async(self.default_options())
+        synchronize([transact.transact_async(gas_price=self.gas_price)
                      for transact in chain(self.top_up_buy_bands(active_offers, buy_bands, target_price),
                                            self.top_up_sell_bands(active_offers, sell_bands, target_price))])
 
@@ -238,8 +238,9 @@ class SaiMakerOtc(SaiKeeper):
                 if (have_amount >= band.dust_cutoff) and (have_amount > Wad(0)):
                     our_balance = our_balance - have_amount
                     want_amount = have_amount * round(band.avg_price(target_price), self.round_places)
-                    yield self.otc.make(have_token=self.gem.address, have_amount=have_amount,
-                                        want_token=self.sai.address, want_amount=want_amount)
+                    if want_amount > Wad(0):
+                        yield self.otc.make(have_token=self.gem.address, have_amount=have_amount,
+                                            want_token=self.sai.address, want_amount=want_amount)
 
     def top_up_buy_bands(self, active_offers: list, buy_bands: list, target_price: Wad):
         """Ensure our SAI engagement if not below minimum in all buy bands. Yield new offers if necessary."""
