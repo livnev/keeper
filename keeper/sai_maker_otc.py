@@ -18,6 +18,7 @@
 import argparse
 import json
 import operator
+import subprocess
 from functools import reduce
 from itertools import chain
 from typing import List
@@ -197,7 +198,7 @@ class SaiMakerOtc(SaiKeeper):
 
     def cancel_offers(self, offers):
         """Cancel offers asynchronously."""
-        synchronize([self.otc.kill(offer.offer_id).transact_async(self.default_options()) for offer in offers])
+        synchronize([self.otc.kill(offer.offer_id).transact_async(gas_price=self.gas_price) for offer in offers])
 
     def excessive_sell_offers(self, active_offers: list, sell_bands: list, target_price: Wad):
         """Return sell offers which need to be cancelled to bring total amounts within all sell bands below maximums."""
@@ -251,11 +252,24 @@ class SaiMakerOtc(SaiKeeper):
                 if (have_amount >= band.dust_cutoff) and (have_amount > Wad(0)):
                     our_balance = our_balance - have_amount
                     want_amount = have_amount / round(band.avg_price(target_price), self.round_places)
-                    yield self.otc.make(have_token=self.sai.address, have_amount=have_amount,
-                                        want_token=self.gem.address, want_amount=want_amount)
+                    if want_amount > Wad(0):
+                        yield self.otc.make(have_token=self.sai.address, have_amount=have_amount,
+                                            want_token=self.gem.address, want_amount=want_amount)
 
     def tub_target_price(self) -> Wad:
-        ref_per_gem = Wad(DSValue(web3=self.web3, address=self.tub.pip()).read_as_int())
+        """SAI per GEM price that we are targeting."""
+        try:
+            cmdstr = "setzer price gemini"
+            process = subprocess.Popen(cmdstr.split(), stdout=subprocess.PIPE)
+            output, error = process.communicate()
+            if error != None:
+                raise ValueError('Error reading feed!')
+            feed_price = float(output)
+            ref_per_gem = Wad.from_number(feed_price)
+            self.logger.debug(f"Successfully read Gemini feed, target price set to: {feed_price}")
+        except:
+            self.logger.info(f"Exception reading Gemini feed, falling back to tub.pip().")
+            ref_per_gem = Wad(DSValue(web3=self.web3, address=self.tub.pip()).read_as_int())
         return ref_per_gem / self.tub.par()
 
     @staticmethod
