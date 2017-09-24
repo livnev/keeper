@@ -139,11 +139,11 @@ class SaiMakerOtc(SaiKeeper):
 
     def cancel_offers(self, offers):
         """Cancel offers asynchronously."""
-        synchronize([self.otc.kill(offer.offer_id).transact_async(self.default_options()) for offer in offers])
+        synchronize([self.otc.kill(offer.offer_id).transact_async(gas_price=self.gas_price) for offer in offers])
 
     def create_new_offers(self, active_offers: list, target_price: Wad):
         """Asynchronously create new buy and sell offers if necessary."""
-        synchronize([transact.transact_async(self.default_options())
+        synchronize([transact.transact_async(gas_price=self.gas_price)
                      for transact in chain(self.new_buy_offer(active_offers, target_price),
                                            self.new_sell_offer(active_offers, target_price))])
 
@@ -155,8 +155,9 @@ class SaiMakerOtc(SaiKeeper):
             have_amount = Wad.min(self.max_weth_amount - total_amount, our_balance)
             if (have_amount >= self.weth_dust_cutoff) and (have_amount > Wad(0)):
                 want_amount = have_amount * round(self.apply_sell_margin(target_price, self.avg_margin_sell), self.round_places)
-                yield self.otc.make(have_token=self.gem.address, have_amount=have_amount,
-                                    want_token=self.sai.address, want_amount=want_amount)
+                if want_amount > Wad(0):
+                    yield self.otc.make(have_token=self.gem.address, have_amount=have_amount,
+                                        want_token=self.sai.address, want_amount=want_amount)
 
     def new_buy_offer(self, active_offers: list, target_price: Wad):
         """If our SAI engagement is below the minimum amount, yield a new offer up to the maximum amount."""
@@ -166,8 +167,9 @@ class SaiMakerOtc(SaiKeeper):
             have_amount = Wad.min(self.max_sai_amount - total_amount, our_balance)
             if (have_amount >= self.sai_dust_cutoff) and (have_amount > Wad(0)):
                 want_amount = have_amount / round(self.apply_buy_margin(target_price, self.avg_margin_buy), self.round_places)
-                yield self.otc.make(have_token=self.sai.address, have_amount=have_amount,
-                                    want_token=self.gem.address, want_amount=want_amount)
+                if want_amount > Wad(0):
+                    yield self.otc.make(have_token=self.sai.address, have_amount=have_amount,
+                                        want_token=self.gem.address, want_amount=want_amount)
 
     def tub_target_price(self) -> Wad:
         """SAI per GEM price that we are targeting."""
